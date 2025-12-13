@@ -57,12 +57,24 @@ void supervisor_flash_init(void) {
     if (_partition[0] != NULL) {
         return;
     }
+
+#if defined(CIRCUITPY_USE_OTA_AS_FAT)
+    const esp_partition_t* current_launcher_slot = esp_ota_get_boot_partition();
+    const esp_partition_t* ota0 = esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_MIN + 0, NULL);
+    const esp_partition_t* ota1 = esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_MIN + 1, NULL);
+    if (current_launcher_slot == ota1) {
+        _partition[0] = ota0;
+    } else {
+        _partition[0] = ota1;
+    }
+#else
     _partition[0] = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
         ESP_PARTITION_SUBTYPE_DATA_FAT,
         NULL);
     #if CIRCUITPY_STORAGE_EXTEND
     _partition[1] = esp_ota_get_next_update_partition(NULL);
     #endif
+#endif
 }
 
 uint32_t supervisor_flash_get_block_size(void) {
