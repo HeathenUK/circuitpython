@@ -17,7 +17,11 @@
 
 #include "soc/soc_caps.h"
 #if SOC_PPA_SUPPORTED
+#if __has_include("driver/ppa.h")
 #include "driver/ppa.h"
+#else
+#undef SOC_PPA_SUPPORTED
+#endif
 #endif
 
 // Cache write-back function (should be from rom/cache.h but it's not always available)
