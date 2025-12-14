@@ -278,11 +278,20 @@ else ifeq ($(IDF_TARGET),esp32p4)
 # No DAC
 CIRCUITPY_AUDIOIO = 0
 
-# No wifi
-# TODO: Support ESP32-C6 coprocessor on some boards.
+# No native BLE on P4
 CIRCUITPY_BLEIO_NATIVE = 0
-CIRCUITPY_WIFI = 0
-CIRCUITPY_SSL = 0
+
+# ESP32-P4 has no native WiFi, but can use ESP-Hosted with an ESP32-C6 co-processor.
+# The esp-hosted-mcu component provides esp_wifi-compatible APIs via the co-processor.
+# See: https://github.com/espressif/esp-hosted-mcu
+ifeq ($(CIRCUITPY_ESP_HOSTED),1)
+CFLAGS += -DCIRCUITPY_ESP_HOSTED=1
+# WiFi is available via ESP-Hosted when the board enables it
+else
+# Default to no WiFi on P4 without ESP-Hosted
+CIRCUITPY_WIFI ?= 0
+CIRCUITPY_SSL ?= 0
+endif
 
 CIRCUITPY_TOUCHIO = 1
 CIRCUITPY_TOUCHIO_USE_NATIVE = 0

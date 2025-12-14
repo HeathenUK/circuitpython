@@ -707,6 +707,11 @@ BINARY_WIFI_BLOBS = libcore.a libespnow.a libnet80211.a libpp.a libsmartconfig.a
 ifneq ($(IDF_TARGET),esp32p4)
 	BINARY_BLOBS = esp-idf/components/esp_phy/lib/$(IDF_TARGET)/libphy.a
 endif
+
+# Native WiFi binary blobs - not needed for ESP-Hosted which uses external co-processor
+ifeq ($(CIRCUITPY_ESP_HOSTED),1)
+# ESP-Hosted doesn't need native WiFi blobs - WiFi is on the co-processor
+else
 ifneq ($(CIRCUITPY_WIFI),0)
 	BINARY_BLOBS += $(addprefix esp-idf/components/esp_wifi/lib/$(IDF_TARGET)/, $(BINARY_WIFI_BLOBS))
 	BINARY_BLOBS += esp-idf/components/esp_coex/lib/$(IDF_TARGET)/libcoexist.a
@@ -714,14 +719,25 @@ ifneq ($(CIRCUITPY_WIFI),0)
 	BINARY_BLOBS += $(addprefix esp-idf/components/esp_wifi/lib/$(IDF_TARGET)/, libmesh.a libwapi.a)
 	endif
 endif
+endif
 
 ifeq ($(IDF_TARGET),esp32)
 BINARY_BLOBS += esp-idf/components/esp_phy/lib/$(IDF_TARGET)/librtc.a
 endif
 
 ESP_IDF_COMPONENTS_LINK = $(IDF_TARGET_ARCH) $(CHIP_COMPONENTS) app_update bootloader_support driver esp_driver_gpio esp_driver_gptimer esp_driver_i2c esp_driver_ledc esp_driver_spi esp_driver_uart efuse esp_adc esp_app_format esp_common esp_event esp_hw_support esp_mm esp_partition esp_pm esp_ringbuf esp_rom esp_system esp_timer freertos hal heap log newlib nvs_flash pthread soc spi_flash vfs esp_vfs_console
+
+# WiFi/networking components
 ifneq ($(CIRCUITPY_WIFI),0)
+ifeq ($(CIRCUITPY_ESP_HOSTED),1)
+# ESP-Hosted: WiFi via esp-hosted-mcu component (co-processor provides WiFi)
+# esp_hosted component provides esp_wifi-compatible API
+# esp_wifi_remote provides the wrapper layer
+	ESP_IDF_COMPONENTS_LINK += esp_hosted esp_wifi_remote esp_netif esp_security esp-tls lwip mbedtls mdns wpa_supplicant console esp_http_client
+else
+# Native WiFi
 	ESP_IDF_COMPONENTS_LINK += esp_coex esp_netif esp_security esp-tls esp_wifi lwip mbedtls mdns wpa_supplicant esp_phy
+endif
 endif
 ifneq ($(CIRCUITPY_BLEIO_NATIVE),0)
 	BLE_IMPL_esp32 := esp32
