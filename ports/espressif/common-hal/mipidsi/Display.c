@@ -292,9 +292,9 @@ void common_hal_mipidsi_display_refresh(mipidsi_display_obj_t *self) {
             angle = PPA_SRM_ROTATION_ANGLE_270;
         }
 
-        ppa_pixel_format_t ppa_fmt = PPA_PIXEL_FORMAT_RGB565;
+        ppa_srm_color_mode_t ppa_cm = PPA_SRM_COLOR_MODE_RGB565;
         if (self->color_depth == 24) {
-            ppa_fmt = PPA_PIXEL_FORMAT_RGB888;
+            ppa_cm = PPA_SRM_COLOR_MODE_RGB888;
         }
 
         ppa_srm_oper_config_t srm_config = {
@@ -303,20 +303,20 @@ void common_hal_mipidsi_display_refresh(mipidsi_display_obj_t *self) {
             .in.pic_h = logical_h,
             .in.block_w = logical_w,
             .in.block_h = logical_h,
-            .in.pixel_format = ppa_fmt,
+            .in.srm_cm = ppa_cm,
             .out.buffer = self->physical_framebuffer,
+            .out.buffer_size = self->framebuffer_size,
             .out.pic_w = physical_w,
             .out.pic_h = physical_h,
-            .out.block_w = physical_w,
-            .out.block_h = physical_h,
-            .out.pixel_format = ppa_fmt,
+            .out.srm_cm = ppa_cm,
             .rotation_angle = angle,
             .scale_x = 1.0f,
             .scale_y = 1.0f,
+            .mode = PPA_TRANS_MODE_BLOCKING,
         };
         
         // This is a blocking call that waits for the PPA operation to complete
-        ppa_do_srm(self->ppa_handle, &srm_config);
+        ppa_do_scale_rotate_mirror(self->ppa_handle, &srm_config);
 
         // Flush the physical framebuffer cache so the LCD DMA sees the new data
         Cache_WriteBack_Addr((uint32_t)self->physical_framebuffer, self->framebuffer_size);
