@@ -152,7 +152,9 @@ void common_hal_esphosted_init(void) {
     }
 
     // TODO: Initialize ESP-Hosted protocol layer
-    // When the esp_hosted component is integrated, add:
+    // When the esp_hosted component is integrated, uncomment and add:
+    //
+    // #include "esp_hosted_api.h"  // Add to includes at top of file
     //
     // esp_hosted_config_t hosted_config = {
     //     .transport = ESP_HOSTED_TRANSPORT_SDIO,
@@ -180,7 +182,8 @@ void common_hal_esphosted_init(void) {
     // }
 
     esp_hosted_initialized = true;
-    ESP_LOGI(TAG, "ESP-Hosted initialized successfully");
+    ESP_LOGI(TAG, "ESP-Hosted SDIO transport initialized");
+    ESP_LOGW(TAG, "Note: Full WiFi support requires esp_hosted component integration");
     #else
     ESP_LOGE(TAG, "ESP-Hosted pins not configured for this board");
     mp_raise_RuntimeError(MP_ERROR_TEXT("ESP-Hosted: no pin configuration"));

@@ -17,6 +17,9 @@
 #include "py/mpstate.h"
 #include "py/runtime.h"
 
+// ESP-Hosted support: when fully integrated with the esp_hosted component,
+// the component provides esp_wifi-compatible APIs and this code works as-is.
+// For now, the esphosted module provides the SDIO transport infrastructure.
 #if CIRCUITPY_ESP_HOSTED
 #include "common-hal/esphosted/__init__.h"
 #endif
