@@ -14,14 +14,13 @@ CIRCUITPY_ESP_PSRAM_MODE = hpi
 CIRCUITPY_ESP_PSRAM_FREQ = 200m
 
 # ESP-Hosted co-processor support (ESP32-C6 connected via SDIO)
-# This enables the SDIO transport layer infrastructure for the ESP32-C6 co-processor.
-# Full WiFi support requires integrating the esp_hosted component from Espressif.
-# See: https://github.com/espressif/esp-hosted
+# The esp-hosted-mcu and esp-wifi-remote components provide WiFi via the co-processor
+# See: https://github.com/espressif/esp-hosted-mcu
 CIRCUITPY_ESP_HOSTED = 1
 
-# TODO: Enable these once esp_hosted component is integrated:
-# CIRCUITPY_WIFI = 1
-# CIRCUITPY_SOCKETPOOL = 1
-# CIRCUITPY_SSL = 1
-# CIRCUITPY_MDNS = 1
-# CIRCUITPY_HASHLIB = 1
+# WiFi and networking enabled via ESP-Hosted
+CIRCUITPY_WIFI = 1
+CIRCUITPY_SOCKETPOOL = 1
+CIRCUITPY_SSL = 1
+CIRCUITPY_MDNS = 1
+CIRCUITPY_HASHLIB = 1

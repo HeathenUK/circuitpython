@@ -282,19 +282,16 @@ CIRCUITPY_AUDIOIO = 0
 CIRCUITPY_BLEIO_NATIVE = 0
 
 # ESP32-P4 has no native WiFi, but can use ESP-Hosted with an ESP32-C6 co-processor.
-# CIRCUITPY_ESP_HOSTED enables the SDIO transport infrastructure for the co-processor.
-# Full WiFi support additionally requires the esp_hosted component from Espressif
-# which provides the esp_wifi-compatible API layer.
+# The esp-hosted-mcu component provides esp_wifi-compatible APIs via the co-processor.
+# See: https://github.com/espressif/esp-hosted-mcu
 ifeq ($(CIRCUITPY_ESP_HOSTED),1)
-# ESP-Hosted co-processor transport enabled
 CFLAGS += -DCIRCUITPY_ESP_HOSTED=1
-# Note: CIRCUITPY_WIFI should only be enabled once esp_hosted component is integrated,
-# as the wifi common-hal code requires esp_wifi.h APIs.
-endif
-
-# Default to no WiFi on P4 unless explicitly enabled with ESP-Hosted component
+# WiFi is available via ESP-Hosted when the board enables it
+else
+# Default to no WiFi on P4 without ESP-Hosted
 CIRCUITPY_WIFI ?= 0
 CIRCUITPY_SSL ?= 0
+endif
 
 CIRCUITPY_TOUCHIO = 1
 CIRCUITPY_TOUCHIO_USE_NATIVE = 0

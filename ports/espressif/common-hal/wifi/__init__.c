@@ -17,13 +17,6 @@
 #include "py/mpstate.h"
 #include "py/runtime.h"
 
-// ESP-Hosted support: when fully integrated with the esp_hosted component,
-// the component provides esp_wifi-compatible APIs and this code works as-is.
-// For now, the esphosted module provides the SDIO transport infrastructure.
-#if CIRCUITPY_ESP_HOSTED
-#include "common-hal/esphosted/__init__.h"
-#endif
-
 #include "components/esp_wifi/include/esp_wifi.h"
 
 #include "components/heap/include/esp_heap_caps.h"
@@ -151,16 +144,6 @@ void common_hal_wifi_init(bool user_initiated) {
     wifi_inited = true;
     wifi_user_initiated = user_initiated;
     common_hal_wifi_radio_obj.base.type = &wifi_radio_type;
-
-    #if CIRCUITPY_ESP_HOSTED
-    // Initialize ESP-Hosted co-processor connection before WiFi
-    // This sets up the SDIO transport to the WiFi co-processor
-    common_hal_esphosted_init();
-    if (!common_hal_esphosted_is_initialized()) {
-        wifi_inited = false;
-        return;
-    }
-    #endif
 
     if (!wifi_ever_inited) {
         ESP_ERROR_CHECK(esp_event_loop_create_default());

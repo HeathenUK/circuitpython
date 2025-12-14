@@ -549,12 +549,6 @@ SRC_ESPNOW := \
 SRC_C += $(SRC_ESPNOW)
 endif
 
-ifeq ($(CIRCUITPY_ESP_HOSTED),1)
-SRC_ESPHOSTED := \
-	$(wildcard common-hal/esphosted/*.c)
-SRC_C += $(SRC_ESPHOSTED)
-endif
-
 ifneq ($(CIRCUITPY_ESPULP),0)
 SRC_ULP := \
 	$(wildcard common-hal/espulp/*.c) \
@@ -736,9 +730,10 @@ ESP_IDF_COMPONENTS_LINK = $(IDF_TARGET_ARCH) $(CHIP_COMPONENTS) app_update bootl
 # WiFi/networking components
 ifneq ($(CIRCUITPY_WIFI),0)
 ifeq ($(CIRCUITPY_ESP_HOSTED),1)
-# ESP-Hosted: needs networking stack (lwip, mbedtls, etc.) but not native esp_wifi
-# The actual WiFi driver runs on the co-processor
-	ESP_IDF_COMPONENTS_LINK += esp_netif esp_security esp-tls lwip mbedtls mdns
+# ESP-Hosted: WiFi via esp-hosted-mcu component (co-processor provides WiFi)
+# esp_hosted component provides esp_wifi-compatible API
+# esp_wifi_remote provides the wrapper layer
+	ESP_IDF_COMPONENTS_LINK += esp_hosted esp_wifi_remote esp_netif esp_security esp-tls lwip mbedtls mdns wpa_supplicant console esp_http_client
 else
 # Native WiFi
 	ESP_IDF_COMPONENTS_LINK += esp_coex esp_netif esp_security esp-tls esp_wifi lwip mbedtls mdns wpa_supplicant esp_phy
