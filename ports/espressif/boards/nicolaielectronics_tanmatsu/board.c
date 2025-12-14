@@ -192,7 +192,7 @@ void board_init(void) {
     common_hal_framebufferio_framebufferdisplay_construct(
         fb_display,
         MP_OBJ_FROM_PTR(display),
-        0,                                          // rotation
+        90,                                         // rotation
         true                                        // auto_refresh
         );
 }

@@ -138,6 +138,10 @@ void common_hal_mipidsi_display_construct(mipidsi_display_obj_t *self,
                 // Swap width and height for the logical view
                 self->width = height;
                 self->height = width;
+                
+                // Set rotation to 0 for displayio, so it renders linearly to our logical buffer
+                // The rotation will happen in hardware during refresh
+                // self->rotation remains the requested rotation (90/270) for our internal logic
             } else {
                 // Failed to allocate logical framebuffer, fallback to software rotation
                 ppa_unregister_client(self->ppa_handle);
@@ -362,6 +366,17 @@ bool common_hal_mipidsi_display_set_brightness(mipidsi_display_obj_t *self, mp_f
         self->current_brightness = brightness;
     }
     return ok;
+}
+
+int common_hal_mipidsi_display_get_rotation(mipidsi_display_obj_t *self) {
+    if (self->ppa_handle) {
+        return 0; // If PPA is handling rotation, report 0 to displayio so it doesn't rotate again
+    }
+    return self->rotation;
+}
+
+void common_hal_mipidsi_display_set_rotation(mipidsi_display_obj_t *self, int rotation) {
+    self->rotation = rotation;
 }
 
 int common_hal_mipidsi_display_get_width(mipidsi_display_obj_t *self) {
