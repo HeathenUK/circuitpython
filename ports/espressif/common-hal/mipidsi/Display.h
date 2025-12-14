@@ -24,8 +24,10 @@ typedef struct {
     mp_uint_t color_depth;
     mp_uint_t native_frames_per_second;
     uint8_t *framebuffer;
+    uint8_t *physical_framebuffer;
     esp_lcd_panel_io_handle_t dbi_io_handle;
     esp_lcd_panel_handle_t dpi_panel_handle;
+    void *ppa_handle;
     size_t framebuffer_size;
     union {
         digitalio_digitalinout_obj_t backlight_inout;

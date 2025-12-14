@@ -15,6 +15,11 @@
 #include <esp_heap_caps.h>
 #include "py/runtime.h"
 
+#include "soc/soc_caps.h"
+#if SOC_PPA_SUPPORTED
+#include "driver/ppa.h"
+#endif
+
 // Cache write-back function (should be from rom/cache.h but it's not always available)
 extern int Cache_WriteBack_Addr(uint32_t addr, uint32_t size);
 
@@ -40,13 +45,15 @@ void common_hal_mipidsi_display_construct(mipidsi_display_obj_t *self,
     mp_uint_t pixel_clock_frequency) {
     self->bus = bus;
     self->virtual_channel = virtual_channel;
-    self->width = width;
-    self->height = height;
+    
+    // Initialize standard fields
     self->rotation = rotation;
     self->color_depth = color_depth;
     self->native_frames_per_second = native_frames_per_second;
     self->backlight_on_high = backlight_on_high;
     self->framebuffer = NULL;
+    self->physical_framebuffer = NULL;
+    self->ppa_handle = NULL;
     self->dbi_io_handle = NULL;
     self->dpi_panel_handle = NULL;
 
@@ -88,7 +95,7 @@ void common_hal_mipidsi_display_construct(mipidsi_display_obj_t *self,
             .vsync_front_porch = vsync_front_porch,
         },
         .flags = {
-            .use_dma2d = false,
+            .use_dma2d = false, // We use PPA manually if available
             .disable_lp = false,
         },
     };
@@ -99,7 +106,7 @@ void common_hal_mipidsi_display_construct(mipidsi_display_obj_t *self,
         CHECK_ESP_RESULT(ret);
     }
 
-    // Get the framebuffer allocated by the driver
+    // Get the physical framebuffer allocated by the driver
     void *fb = NULL;
     ret = esp_lcd_dpi_panel_get_frame_buffer(self->dpi_panel_handle, 1, &fb);
     if (ret != ESP_OK || fb == NULL) {
@@ -107,10 +114,48 @@ void common_hal_mipidsi_display_construct(mipidsi_display_obj_t *self,
         CHECK_ESP_RESULT(ret);
     }
 
-    self->framebuffer = (uint8_t *)fb;
-    self->framebuffer_size = width * height * (color_depth / 8);
+    // Check if we can use PPA for hardware rotation
+    bool use_ppa = false;
+    #if SOC_PPA_SUPPORTED
+    if (rotation == 90 || rotation == 270) {
+        ppa_client_config_t ppa_config = {
+            .oper_type = PPA_OPERATION_SRM,
+        };
+        // Use a pointer cast to avoid strict strictness if ppa_client_handle_t is different
+        // but it should be compatible with void*
+        if (ppa_register_client(&ppa_config, (ppa_client_handle_t*)&self->ppa_handle) == ESP_OK) {
+            
+            size_t fb_size = width * height * (color_depth / 8);
+            // Allocate a secondary logical framebuffer in PSRAM
+            void *logical_fb = heap_caps_malloc(fb_size, MALLOC_CAP_SPIRAM);
+            
+            if (logical_fb) {
+                use_ppa = true;
+                self->physical_framebuffer = (uint8_t *)fb;
+                self->framebuffer = (uint8_t *)logical_fb;
+                self->framebuffer_size = fb_size;
+                
+                // Swap width and height for the logical view
+                self->width = height;
+                self->height = width;
+            } else {
+                // Failed to allocate logical framebuffer, fallback to software rotation
+                ppa_unregister_client(self->ppa_handle);
+                self->ppa_handle = NULL;
+            }
+        }
+    }
+    #endif
 
-    // Send initialization sequence (format matches busdisplay)
+    if (!use_ppa) {
+        self->width = width;
+        self->height = height;
+        self->framebuffer = (uint8_t *)fb;
+        self->framebuffer_size = width * height * (color_depth / 8);
+        self->physical_framebuffer = NULL; // Flag that we are using the physical FB directly
+    }
+
+    // Send initialization sequence
     #define DELAY 0x80
     uint32_t i = 0;
     while (i < init_sequence_len) {
@@ -191,6 +236,21 @@ void common_hal_mipidsi_display_deinit(mipidsi_display_obj_t *self) {
         common_hal_digitalio_digitalinout_deinit(&self->backlight_inout);
     }
 
+    // Cleanup PPA and logical buffer
+    #if SOC_PPA_SUPPORTED
+    if (self->ppa_handle) {
+        ppa_unregister_client(self->ppa_handle);
+        self->ppa_handle = NULL;
+    }
+    #endif
+    
+    if (self->physical_framebuffer != NULL && self->framebuffer != NULL) {
+        // We allocated a separate logical framebuffer
+        heap_caps_free(self->framebuffer);
+        self->framebuffer = NULL;
+    }
+    self->physical_framebuffer = NULL;
+
     // Delete the DPI panel
     if (self->dpi_panel_handle != NULL) {
         esp_lcd_panel_del(self->dpi_panel_handle);
@@ -213,13 +273,61 @@ bool common_hal_mipidsi_display_deinited(mipidsi_display_obj_t *self) {
 }
 
 void common_hal_mipidsi_display_refresh(mipidsi_display_obj_t *self) {
+    #if SOC_PPA_SUPPORTED
+    if (self->ppa_handle) {
+        // PPA Rotation BLIT: Logical FB -> Physical FB
+        
+        uint32_t logical_w = self->width;
+        uint32_t logical_h = self->height;
+        uint32_t physical_w = self->height; // Swapped
+        uint32_t physical_h = self->width;
+        
+        ppa_srm_rotation_angle_t angle = PPA_SRM_ROTATION_ANGLE_0;
+        if (self->rotation == 90) {
+            angle = PPA_SRM_ROTATION_ANGLE_90;
+        } else if (self->rotation == 270) {
+            angle = PPA_SRM_ROTATION_ANGLE_270;
+        }
+
+        ppa_pixel_format_t ppa_fmt = PPA_PIXEL_FORMAT_RGB565;
+        if (self->color_depth == 24) {
+            ppa_fmt = PPA_PIXEL_FORMAT_RGB888;
+        }
+
+        ppa_srm_oper_config_t srm_config = {
+            .in.buffer = self->framebuffer,
+            .in.pic_w = logical_w,
+            .in.pic_h = logical_h,
+            .in.block_w = logical_w,
+            .in.block_h = logical_h,
+            .in.pixel_format = ppa_fmt,
+            .out.buffer = self->physical_framebuffer,
+            .out.pic_w = physical_w,
+            .out.pic_h = physical_h,
+            .out.block_w = physical_w,
+            .out.block_h = physical_h,
+            .out.pixel_format = ppa_fmt,
+            .rotation_angle = angle,
+            .scale_x = 1.0f,
+            .scale_y = 1.0f,
+        };
+        
+        // This is a blocking call that waits for the PPA operation to complete
+        ppa_do_srm(self->ppa_handle, &srm_config);
+
+        // Flush the physical framebuffer cache so the LCD DMA sees the new data
+        Cache_WriteBack_Addr((uint32_t)self->physical_framebuffer, self->framebuffer_size);
+        
+        // Notify panel (mostly valid for ensuring sync)
+        esp_lcd_panel_draw_bitmap(self->dpi_panel_handle, 0, 0, physical_w, physical_h, self->physical_framebuffer);
+        return;
+    }
+    #endif
+
+    // Default behavior (Software Rotation or No Rotation)
     // Drawing the framebuffer we got from the IDF will flush the cache(s) so
     // DMA can see our changes. It won't cause an extra copy.
     esp_lcd_panel_draw_bitmap(self->dpi_panel_handle, 0, 0, self->width, self->height, self->framebuffer);
-
-    // The DPI panel will automatically refresh from the framebuffer
-    // No explicit refresh call is needed as the DSI hardware continuously
-    // sends data from the framebuffer to the display
 }
 
 mp_float_t common_hal_mipidsi_display_get_brightness(mipidsi_display_obj_t *self) {
