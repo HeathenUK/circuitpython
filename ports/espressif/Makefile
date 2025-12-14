@@ -68,6 +68,7 @@ INC += \
 	-isystem esp-idf/components/esp_driver_ledc/include \
 	-isystem esp-idf/components/esp_driver_parlio/include \
 	-isystem esp-idf/components/esp_driver_pcnt/include \
+	-isystem esp-idf/components/esp_driver_ppa/include \
 	-isystem esp-idf/components/esp_driver_rmt/include \
 	-isystem esp-idf/components/esp_driver_sdio/include \
 	-isystem esp-idf/components/esp_driver_sdmmc/include \
@@ -331,6 +332,7 @@ LDFLAGS += \
 
 
 CHIP_COMPONENTS = \
+	esp_driver_ppa \
 	esp_driver_tsens \
 	esp_driver_usb_serial_jtag
 

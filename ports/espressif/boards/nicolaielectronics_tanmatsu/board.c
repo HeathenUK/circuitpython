@@ -189,10 +189,12 @@ void board_init(void) {
     framebufferio_framebufferdisplay_obj_t *fb_display = &allocate_display()->framebuffer_display;
     fb_display->base.type = &framebufferio_framebufferdisplay_type;
 
+    // Note: rotation is handled by the mipidsi Display (via PPA on ESP32-P4),
+    // so framebufferdisplay rotation should be 0 to avoid double-rotation
     common_hal_framebufferio_framebufferdisplay_construct(
         fb_display,
         MP_OBJ_FROM_PTR(display),
-        90,                                         // rotation
+        0,                                          // rotation (PPA handles this)
         true                                        // auto_refresh
         );
 }
