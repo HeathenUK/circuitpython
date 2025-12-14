@@ -16,13 +16,14 @@
 #include "py/runtime.h"
 
 #include "soc/soc_caps.h"
-#if SOC_PPA_SUPPORTED
+#if defined(SOC_PPA_SUPPORTED) && SOC_PPA_SUPPORTED
 // Check if the header actually exists before trying to include it
 #if __has_include("driver/ppa.h")
 #include "driver/ppa.h"
 #else
 // If the header is missing, we cannot use PPA even if the SOC supports it.
 #undef SOC_PPA_SUPPORTED
+#define SOC_PPA_SUPPORTED 0
 #endif
 #endif
 
@@ -122,7 +123,7 @@ void common_hal_mipidsi_display_construct(mipidsi_display_obj_t *self,
 
     // Check if we can use PPA for hardware rotation
     bool use_ppa = false;
-    #if SOC_PPA_SUPPORTED
+    #if defined(SOC_PPA_SUPPORTED) && SOC_PPA_SUPPORTED
     if (rotation == 90 || rotation == 270) {
         ppa_client_config_t ppa_config = {
             .oper_type = PPA_OPERATION_SRM,
@@ -247,7 +248,7 @@ void common_hal_mipidsi_display_deinit(mipidsi_display_obj_t *self) {
     }
 
     // Cleanup PPA and logical buffer
-    #if SOC_PPA_SUPPORTED
+    #if defined(SOC_PPA_SUPPORTED) && SOC_PPA_SUPPORTED
     if (self->ppa_handle) {
         ppa_unregister_client(self->ppa_handle);
         self->ppa_handle = NULL;
@@ -283,7 +284,7 @@ bool common_hal_mipidsi_display_deinited(mipidsi_display_obj_t *self) {
 }
 
 void common_hal_mipidsi_display_refresh(mipidsi_display_obj_t *self) {
-    #if SOC_PPA_SUPPORTED
+    #if defined(SOC_PPA_SUPPORTED) && SOC_PPA_SUPPORTED
     if (self->ppa_handle) {
         // PPA Rotation BLIT: Logical FB -> Physical FB
         
