@@ -286,13 +286,11 @@ void common_hal_mipidsi_display_refresh(mipidsi_display_obj_t *self) {
         uint32_t physical_w = self->height; // Swapped
         uint32_t physical_h = self->width;
         
-        // PPA rotation is counter-clockwise, but display rotation is typically clockwise
-        // So we need to invert: 90° clockwise = 270° counter-clockwise
         ppa_srm_rotation_angle_t angle = PPA_SRM_ROTATION_ANGLE_0;
         if (self->rotation == 90) {
-            angle = PPA_SRM_ROTATION_ANGLE_270;
-        } else if (self->rotation == 270) {
             angle = PPA_SRM_ROTATION_ANGLE_90;
+        } else if (self->rotation == 270) {
+            angle = PPA_SRM_ROTATION_ANGLE_270;
         }
 
         ppa_srm_color_mode_t ppa_cm = PPA_SRM_COLOR_MODE_RGB565;
