@@ -15,15 +15,8 @@
 #include <esp_heap_caps.h>
 #include "py/runtime.h"
 
-#include "soc/soc_caps.h"
-#if SOC_PPA_SUPPORTED
-// Check if the header actually exists before trying to include it
-#if __has_include("driver/ppa.h")
+#ifdef CONFIG_IDF_TARGET_ESP32P4
 #include "driver/ppa.h"
-#else
-// If the header is missing, we cannot use PPA even if the SOC supports it.
-#undef SOC_PPA_SUPPORTED
-#endif
 #endif
 
 // Cache write-back function (should be from rom/cache.h but it's not always available)
@@ -122,7 +115,7 @@ void common_hal_mipidsi_display_construct(mipidsi_display_obj_t *self,
 
     // Check if we can use PPA for hardware rotation
     bool use_ppa = false;
-    #if SOC_PPA_SUPPORTED
+    #ifdef CONFIG_IDF_TARGET_ESP32P4
     if (rotation == 90 || rotation == 270) {
         ppa_client_config_t ppa_config = {
             .oper_type = PPA_OPERATION_SRM,
@@ -133,7 +126,8 @@ void common_hal_mipidsi_display_construct(mipidsi_display_obj_t *self,
             
             size_t fb_size = width * height * (color_depth / 8);
             // Allocate a secondary logical framebuffer in PSRAM
-            void *logical_fb = heap_caps_malloc(fb_size, MALLOC_CAP_SPIRAM);
+            // PPA requires cache-line aligned buffers for DMA
+            void *logical_fb = heap_caps_aligned_alloc(64, fb_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
             
             if (logical_fb) {
                 use_ppa = true;
@@ -247,7 +241,7 @@ void common_hal_mipidsi_display_deinit(mipidsi_display_obj_t *self) {
     }
 
     // Cleanup PPA and logical buffer
-    #if SOC_PPA_SUPPORTED
+    #ifdef CONFIG_IDF_TARGET_ESP32P4
     if (self->ppa_handle) {
         ppa_unregister_client(self->ppa_handle);
         self->ppa_handle = NULL;
@@ -283,7 +277,7 @@ bool common_hal_mipidsi_display_deinited(mipidsi_display_obj_t *self) {
 }
 
 void common_hal_mipidsi_display_refresh(mipidsi_display_obj_t *self) {
-    #if SOC_PPA_SUPPORTED
+    #ifdef CONFIG_IDF_TARGET_ESP32P4
     if (self->ppa_handle) {
         // PPA Rotation BLIT: Logical FB -> Physical FB
         
@@ -294,14 +288,14 @@ void common_hal_mipidsi_display_refresh(mipidsi_display_obj_t *self) {
         
         ppa_srm_rotation_angle_t angle = PPA_SRM_ROTATION_ANGLE_0;
         if (self->rotation == 90) {
-            angle = PPA_SRM_ROTATION_ANGLE_90;
-        } else if (self->rotation == 270) {
             angle = PPA_SRM_ROTATION_ANGLE_270;
+        } else if (self->rotation == 270) {
+            angle = PPA_SRM_ROTATION_ANGLE_90;
         }
 
-        ppa_pixel_format_t ppa_fmt = PPA_PIXEL_FORMAT_RGB565;
+        ppa_srm_color_mode_t ppa_cm = PPA_SRM_COLOR_MODE_RGB565;
         if (self->color_depth == 24) {
-            ppa_fmt = PPA_PIXEL_FORMAT_RGB888;
+            ppa_cm = PPA_SRM_COLOR_MODE_RGB888;
         }
 
         ppa_srm_oper_config_t srm_config = {
@@ -310,27 +304,30 @@ void common_hal_mipidsi_display_refresh(mipidsi_display_obj_t *self) {
             .in.pic_h = logical_h,
             .in.block_w = logical_w,
             .in.block_h = logical_h,
-            .in.pixel_format = ppa_fmt,
+            .in.srm_cm = ppa_cm,
             .out.buffer = self->physical_framebuffer,
+            .out.buffer_size = self->framebuffer_size,
             .out.pic_w = physical_w,
             .out.pic_h = physical_h,
-            .out.block_w = physical_w,
-            .out.block_h = physical_h,
-            .out.pixel_format = ppa_fmt,
+            .out.srm_cm = ppa_cm,
             .rotation_angle = angle,
             .scale_x = 1.0f,
             .scale_y = 1.0f,
+            .mode = PPA_TRANS_MODE_BLOCKING,
         };
         
         // This is a blocking call that waits for the PPA operation to complete
-        ppa_do_srm(self->ppa_handle, &srm_config);
-
-        // Flush the physical framebuffer cache so the LCD DMA sees the new data
-        Cache_WriteBack_Addr((uint32_t)self->physical_framebuffer, self->framebuffer_size);
+        esp_err_t err = ppa_do_scale_rotate_mirror(self->ppa_handle, &srm_config);
         
-        // Notify panel (mostly valid for ensuring sync)
-        esp_lcd_panel_draw_bitmap(self->dpi_panel_handle, 0, 0, physical_w, physical_h, self->physical_framebuffer);
-        return;
+        if (err == ESP_OK) {
+            // Flush the physical framebuffer cache so the LCD DMA sees the new data
+            Cache_WriteBack_Addr((uint32_t)self->physical_framebuffer, self->framebuffer_size);
+            
+            // Notify panel (mostly valid for ensuring sync)
+            esp_lcd_panel_draw_bitmap(self->dpi_panel_handle, 0, 0, physical_w, physical_h, self->physical_framebuffer);
+            return;
+        }
+        // If PPA failed, fall through to non-rotated draw (better than nothing)
     }
     #endif
 
