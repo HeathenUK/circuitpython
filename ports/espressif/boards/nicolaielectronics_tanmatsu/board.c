@@ -144,6 +144,7 @@ void board_init(void) {
     sd_pwr_ctrl_ldo_config_t ldo_config = {
         .ldo_chan_id = 4,
     };
+    
     sd_pwr_ctrl_handle_t pwr_ctrl_handle = NULL;
     sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &pwr_ctrl_handle);
     sd_pwr_ctrl_set_io_voltage(pwr_ctrl_handle, 0);
