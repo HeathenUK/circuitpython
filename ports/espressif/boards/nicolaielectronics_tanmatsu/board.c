@@ -36,6 +36,7 @@
 #include "hal/gpio_hal.h"
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_mipi_dsi.h>
+#include "sd_pwr_ctrl_by_on_chip_ldo.h"
 
 // Statically allocate the MIPI DSI bus (only one DSI bus on ESP32-P4)
 static mipidsi_bus_obj_t board_mipidsi_bus;
@@ -138,6 +139,17 @@ static const uint8_t st7701s_init_sequence[] = {
 #define LCD_RESET_PIN &pin_GPIO14
 
 void board_init(void) {
+
+    //Init SD LDO
+    sd_pwr_ctrl_ldo_config_t ldo_config = {
+        .ldo_chan_id = 4,
+    };
+    sd_pwr_ctrl_handle_t pwr_ctrl_handle = NULL;
+    sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &pwr_ctrl_handle);
+    sd_pwr_ctrl_set_io_voltage(pwr_ctrl_handle, 0);
+    mp_hal_delay_ms(150);
+    sd_pwr_ctrl_set_io_voltage(pwr_ctrl_handle, 3300);
+
     // Reset the display
     digitalio_digitalinout_obj_t reset_pin;
     reset_pin.base.type = &digitalio_digitalinout_type;
