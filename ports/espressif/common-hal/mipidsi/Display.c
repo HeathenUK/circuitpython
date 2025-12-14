@@ -126,7 +126,8 @@ void common_hal_mipidsi_display_construct(mipidsi_display_obj_t *self,
             
             size_t fb_size = width * height * (color_depth / 8);
             // Allocate a secondary logical framebuffer in PSRAM
-            void *logical_fb = heap_caps_malloc(fb_size, MALLOC_CAP_SPIRAM);
+            // PPA requires cache-line aligned buffers for DMA
+            void *logical_fb = heap_caps_aligned_alloc(64, fb_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
             
             if (logical_fb) {
                 use_ppa = true;
@@ -318,14 +319,17 @@ void common_hal_mipidsi_display_refresh(mipidsi_display_obj_t *self) {
         };
         
         // This is a blocking call that waits for the PPA operation to complete
-        ppa_do_scale_rotate_mirror(self->ppa_handle, &srm_config);
-
-        // Flush the physical framebuffer cache so the LCD DMA sees the new data
-        Cache_WriteBack_Addr((uint32_t)self->physical_framebuffer, self->framebuffer_size);
+        esp_err_t err = ppa_do_scale_rotate_mirror(self->ppa_handle, &srm_config);
         
-        // Notify panel (mostly valid for ensuring sync)
-        esp_lcd_panel_draw_bitmap(self->dpi_panel_handle, 0, 0, physical_w, physical_h, self->physical_framebuffer);
-        return;
+        if (err == ESP_OK) {
+            // Flush the physical framebuffer cache so the LCD DMA sees the new data
+            Cache_WriteBack_Addr((uint32_t)self->physical_framebuffer, self->framebuffer_size);
+            
+            // Notify panel (mostly valid for ensuring sync)
+            esp_lcd_panel_draw_bitmap(self->dpi_panel_handle, 0, 0, physical_w, physical_h, self->physical_framebuffer);
+            return;
+        }
+        // If PPA failed, fall through to non-rotated draw (better than nothing)
     }
     #endif
 
