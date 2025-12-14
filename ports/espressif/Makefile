@@ -549,6 +549,12 @@ SRC_ESPNOW := \
 SRC_C += $(SRC_ESPNOW)
 endif
 
+ifeq ($(CIRCUITPY_ESP_HOSTED),1)
+SRC_ESPHOSTED := \
+	$(wildcard common-hal/esphosted/*.c)
+SRC_C += $(SRC_ESPHOSTED)
+endif
+
 ifneq ($(CIRCUITPY_ESPULP),0)
 SRC_ULP := \
 	$(wildcard common-hal/espulp/*.c) \
