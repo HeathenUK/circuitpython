@@ -17,7 +17,13 @@
 
 #include "soc/soc_caps.h"
 #if SOC_PPA_SUPPORTED
+// Check if the header actually exists before trying to include it
+#if __has_include("driver/ppa.h")
 #include "driver/ppa.h"
+#else
+// If the header is missing, we cannot use PPA even if the SOC supports it.
+#undef SOC_PPA_SUPPORTED
+#endif
 #endif
 
 // Cache write-back function (should be from rom/cache.h but it's not always available)
