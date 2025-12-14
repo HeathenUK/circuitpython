@@ -43,4 +43,6 @@ int common_hal_mipidsi_display_get_row_stride(mipidsi_display_obj_t *self);
 int common_hal_mipidsi_display_get_color_depth(mipidsi_display_obj_t *self);
 int common_hal_mipidsi_display_get_native_frames_per_second(mipidsi_display_obj_t *self);
 bool common_hal_mipidsi_display_get_grayscale(mipidsi_display_obj_t *self);
+int common_hal_mipidsi_display_get_rotation(mipidsi_display_obj_t *self);
+void common_hal_mipidsi_display_set_rotation(mipidsi_display_obj_t *self, int rotation);
 mp_int_t common_hal_mipidsi_display_get_buffer(mp_obj_t self_in, mp_buffer_info_t *bufinfo, mp_uint_t flags);
